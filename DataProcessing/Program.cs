@@ -15,72 +15,68 @@
 
 using System;
 using System.IO;
+using QuantConnect;
 using QuantConnect.Configuration;
 using QuantConnect.Logging;
 using QuantConnect.Util;
 
-namespace QuantConnect.DataProcessing
+/// <summary>
+/// Entrypoint for the data downloader/converter
+/// </summary>
+public class Program
 {
     /// <summary>
-    /// Entrypoint for the data downloader/converter
+    /// Entrypoint of the program
     /// </summary>
-    public class Program
+    /// <returns>Exit code. 0 equals successful, and any other value indicates the downloader/converter failed.</returns>
+    public static void Main()
     {
-        /// <summary>
-        /// Entrypoint of the program
-        /// </summary>
-        /// <returns>Exit code. 0 equals successful, and any other value indicates the downloader/converter failed.</returns>
-        public static void Main()
+        // Get the config values first before running. These values are set for us
+        // automatically to the value set on the website when defining this data type
+        var destinationDirectory = Path.Combine(
+            Config.Get("temp-output-directory", "/temp-output-directory"),
+            "alternative");
+        var processingDateValue = Environment.GetEnvironmentVariable("QC_DATAFLEET_DEPLOYMENT_DATE");
+        var processingDate = string.IsNullOrWhiteSpace(processingDateValue)
+            ? DateTime.UtcNow.AddDays(-1).Date
+            : Parse.DateTimeExact(processingDateValue, "yyyyMMdd");
+
+        QuiverGovernmentContractDownloader instance = null;
+        try
         {
-            // Get the config values first before running. These values are set for us
-            // automatically to the value set on the website when defining this data type
-            var destinationDirectory = Path.Combine(
-                Config.Get("temp-output-directory", "/temp-output-directory"),
-                "alternative");
-            var processedDataDirectory = Path.Combine(
-                Config.Get("processed-data-directory", Globals.DataFolder),
-                "alternative");
-            var processingDateValue = Config.Get("processing-date", Environment.GetEnvironmentVariable("QC_DATAFLEET_DEPLOYMENT_DATE"));
-            var processingDate = Parse.DateTimeExact(processingDateValue, "yyyyMMdd");
-
-            QuiverGovernmentContractDownloader instance = null;
-            try
-            {
-                // Pass in the values we got from the configuration into the downloader/converter.
-                instance = new QuiverGovernmentContractDownloader(destinationDirectory, processedDataDirectory);
-            }
-            catch (Exception err)
-            {
-                Log.Error(err, $"QuantConnect.DataProcessing.Program.Main(): The downloader/converter for {QuiverGovernmentContractDownloader.VendorDataName} {QuiverGovernmentContractDownloader.VendorDataName} data failed to be constructed");
-                Environment.Exit(1);
-            }
-
-            // No need to edit anything below here for most use cases.
-            // The downloader/converter is ran and cleaned up for you safely here.
-            try
-            {
-                // Run the data downloader/converter.
-                var success = instance.Run(processingDate);
-                
-                if (!success)
-                {
-                    Log.Error($"QuantConnect.DataProcessing.Program.Main(): Failed to download/process {QuiverGovernmentContractDownloader.VendorName} {QuiverGovernmentContractDownloader.VendorDataName} data");
-                    Environment.Exit(1);
-                }
-            }
-            catch (Exception err)
-            {
-                Log.Error(err, $"QuantConnect.DataProcessing.Program.Main(): The downloader/converter for {QuiverGovernmentContractDownloader.VendorDataName} {QuiverGovernmentContractDownloader.VendorDataName} data exited unexpectedly");
-                Environment.Exit(1);
-            }
-            finally
-            {
-                // Run cleanup of the downloader/converter once it has finished or crashed.
-                instance.DisposeSafely();
-            }
-            
-            // The downloader/converter was successful
-            Environment.Exit(0);
+            // Pass in the values we got from the configuration into the downloader/converter.
+            instance = new QuiverGovernmentContractDownloader(destinationDirectory);
         }
+        catch (Exception err)
+        {
+            Log.Error(err, $"QuantConnect.DataProcessing.Program.Main(): The downloader/converter for {QuiverGovernmentContractDownloader.VendorDataName} {QuiverGovernmentContractDownloader.VendorDataName} data failed to be constructed");
+            Environment.Exit(1);
+        }
+
+        // No need to edit anything below here for most use cases.
+        // The downloader/converter is ran and cleaned up for you safely here.
+        try
+        {
+            // Run the data downloader/converter.
+            var success = instance.Run(processingDate);
+            if (!success)
+            {
+                Log.Error($"QuantConnect.DataProcessing.Program.Main(): Failed to download/process {QuiverGovernmentContractDownloader.VendorName} {QuiverGovernmentContractDownloader.VendorDataName} data");
+                Environment.Exit(1);
+            }
+        }
+        catch (Exception err)
+        {
+            Log.Error(err, $"QuantConnect.DataProcessing.Program.Main(): The downloader/converter for {QuiverGovernmentContractDownloader.VendorDataName} {QuiverGovernmentContractDownloader.VendorDataName} data exited unexpectedly");
+            Environment.Exit(1);
+        }
+        finally
+        {
+            // Run cleanup of the downloader/converter once it has finished or crashed.
+            instance.DisposeSafely();
+        }
+
+        // The downloader/converter was successful
+        Environment.Exit(0);
     }
 }
